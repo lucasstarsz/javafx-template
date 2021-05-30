@@ -1,0 +1,152 @@
+plugins {
+    // This is an application.
+    id 'application'
+
+    // Since it's an application, you might want to distribute an executable/installer.
+    id 'org.beryx.jlink' version '2.24.0'
+}
+
+group('io.github.your_github_username_here')
+version('0.0.1')
+def currentOs = org.gradle.internal.os.OperatingSystem.current()
+
+repositories {
+    // Maven Central is used to resolve dependencies.
+    mavenCentral()
+}
+
+dependencies {
+    // Testing is done with the JUnit 5 Testing framework.
+    testImplementation platform('org.junit:junit-bom:5.7.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    // Since Gradle 6.6, we have to grab javafx dependencies straight from the source.
+    // Because JavaFX has specific binaries for each development platform, we need to
+    // use the correct ones for our platform.
+
+    def platform = (currentOs.windows ? 'win' : currentOs.linux ? 'linux' : currentOs.macOsX ? 'mac' : '')
+
+    implementation "org.openjfx:javafx-base:16:${platform}"
+    implementation "org.openjfx:javafx-controls:16:${platform}"
+    implementation "org.openjfx:javafx-graphics:16:${platform}"
+    implementation "org.openjfx:javafx-fxml:16:${platform}"
+}
+
+application {
+    // Define the main module and class for the application here.
+    // When you change your module name or class name, change it here as well!
+    mainModule.set('javafxtemplate')
+    mainClass.set('template.Main')
+}
+
+// Ensures modules get put on the path correctly
+java {
+    modularity.inferModulePath.set(true)
+}
+
+
+// Java 16 is a must!
+// ...or set your own preferred java version here.
+compileJava {
+    options.release.set(16)
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(16)
+    }
+}
+
+
+// Unit Testing
+
+import org.gradle.api.internal.tasks.testing.results.DefaultTestResult
+
+// Pretty-prints the results of the testing.
+tasks.withType(Test) {
+    useJUnitPlatform()
+    testLogging {
+
+        def totalTestTime = 0
+
+        afterTest { desc, DefaultTestResult result ->
+            totalTestTime += result.endTime - result.startTime
+        }
+
+        afterSuite { desc, DefaultTestResult result ->
+            if (!desc.parent) { // will match the outermost suite
+                def passFailSkip = "${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped"
+                def output = "Test Suite Results: ${result.resultType} (${result.testCount} tests, ${passFailSkip}) in ${totalTestTime} ms."
+                def startItem = '|  ', endItem = '  |'
+                def repeatLength = startItem.length() + output.length() + endItem.length()
+                println('\n' + ('-' * repeatLength) + '\n' + startItem + output + endItem + '\n' + ('-' * repeatLength) + '\n')
+
+                if (("${result.resultType}" != "SUCCESS")) {
+                    System.exit(0)
+                }
+            }
+        }
+    }
+}
+
+
+// Packaging
+
+// More information on the jlink plugin: https://badass-jlink-plugin.beryx.org/releases/2.24.0/
+jlink {
+
+    def appName = 'Your app name here.'
+    def appDescription = 'Your app description here.'
+
+    // Name your icons according to the icon type, such as:
+    // (Windows) appIcon_ico.ico
+    // (Linux) appIcon_png.png
+    // (MacOS) appIcon_icns.icns
+    //
+    // Then, put your icons in the same directory and set the iconPath below as follows:
+    // path/to/appIcon
+
+    def iconPath = 'path/to/appIcon'
+
+    // Makes sure JavaFX gets added
+    addExtraDependencies("javafx")
+
+    // Removes all the unnecessary debugging information from the created executable/installer.
+    options.addAll('--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages')
+
+    launcher {
+        name = appName
+        noConsole = true
+    }
+
+    jpackage {
+        // cross-platform options
+        jvmArgs += ['-XX:+CreateCoredumpOnCrash']
+        installerOptions += [
+                '--description', appDescription,
+                '--app-version', project.version
+        ]
+
+        // platform-specific options
+
+        if (currentOs.windows) {
+            installerType = "msi"
+            icon = "${iconPath}_ico.ico"
+
+            installerOptions += [
+                    '--win-dir-chooser',
+                    '--win-shortcut',
+            ]
+        } else if (currentOs.linux) {
+            installerType = "deb"
+            icon = "${iconPath}_png.png"
+
+            installerOptions += [
+                    '--linux-shortcut'
+            ]
+        } else if (currentOs.macOsX) {
+            installerType = "pkg"
+            icon = "${iconPath}_icns.icns"
+        }
+    }
+}

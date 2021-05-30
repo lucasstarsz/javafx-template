@@ -4,6 +4,8 @@ module javafxtemplate {
     requires javafx.controls;
     requires javafx.fxml;
 
+    exports template;
+
     // If your project uses FXML, make sure to open all packages that use
     // it to javafx.fxml like so:
     //
